@@ -21,15 +21,59 @@ export function SuggestionsStep({ userId, selectedInterests, onComplete }: Sugge
 
   const { data: suggestions, isLoading } = useQuery({
     queryKey: ['suggestions', selectedInterests],
-    queryFn: async () => {
-      const { data } = await supabase
+    queryFn: async (): Promise<Profile[]> => {
+      if (!selectedInterests || selectedInterests.length === 0) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('id, username, display_name, avatar_url, is_verified, followers_count')
+          .neq('id', userId)
+          .order('followers_count', { ascending: false })
+          .limit(10);
+        return (data || []) as Profile[];
+      }
+
+      const { data: userInterests } = await supabase
+        .from('user_interests')
+        .select('tag_id')
+        .eq('user_id', userId);
+
+      const currentUserTagIds = (userInterests || []).map(ui => ui.tag_id);
+      const tagsToExclude = new Set([...selectedInterests, ...currentUserTagIds]);
+
+      const { data: allProfiles } = await supabase
         .from('profiles')
         .select('id, username, display_name, avatar_url, is_verified, followers_count')
         .neq('id', userId)
         .order('followers_count', { ascending: false })
-        .limit(10);
-      return data as Profile[];
+        .limit(50);
+
+      const { data: otherInterests } = await supabase
+        .from('user_interests')
+        .select('user_id, tag_id')
+        .in('tag_id', selectedInterests);
+
+      const interestMap: Record<string, string[]> = {};
+      (otherInterests || []).forEach(item => {
+        if (!interestMap[item.user_id]) {
+          interestMap[item.user_id] = [];
+        }
+        interestMap[item.user_id].push(item.tag_id);
+      });
+
+      const scoredProfiles = (allProfiles || [])
+        .map(profile => ({
+          profile,
+          score: (interestMap[profile.id] || []).length,
+        }))
+        .filter(item => item.score > 0)
+        .sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          return (b.profile.followers_count || 0) - (a.profile.followers_count || 0);
+        });
+
+      return scoredProfiles.slice(0, 10).map(item => item.profile) as unknown as Profile[];
     },
+    enabled: !!selectedInterests,
   });
 
   const followMutation = useMutation({
