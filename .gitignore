@@ -1,0 +1,8 @@
+/node_modules
+.gemini/
+.next/
+.env.local
+.env
+.env.example
+.env.production
+.opencode/
