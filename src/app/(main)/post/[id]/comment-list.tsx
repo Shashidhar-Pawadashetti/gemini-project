@@ -4,16 +4,19 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Heart } from 'lucide-react';
+import { Heart, MessageCircle } from 'lucide-react';
 import { formatRelativeTime } from '@/lib/utils';
+import { CommentForm } from './comment-form';
 import type { Comment } from '@/types';
 
 interface CommentListProps {
   comments: (Comment & { replies?: Comment[] })[];
+  postId: string;
 }
 
-export function CommentList({ comments }: CommentListProps) {
+export function CommentList({ comments, postId }: CommentListProps) {
   const [likedComments, setLikedComments] = useState<Set<string>>(new Set());
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
 
   if (comments.length === 0) {
     return (
@@ -48,12 +51,31 @@ export function CommentList({ comments }: CommentListProps) {
                 </span>
               </div>
               <p className="mt-1">{comment.content}</p>
-              <button className="flex items-center gap-1 mt-2 text-muted-foreground hover:text-red-500 transition-colors">
-                <Heart className={`h-4 w-4 ${likedComments.has(comment.id) ? 'fill-current text-red-500' : ''}`} />
-                <span className="text-xs">{comment.likes_count}</span>
-              </button>
+              <div className="flex items-center gap-4 mt-2">
+                <button 
+                  onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
+                  className="flex items-center gap-1 text-muted-foreground hover:text-primary transition-colors"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  <span className="text-xs">Reply</span>
+                </button>
+                <button className="flex items-center gap-1 text-muted-foreground hover:text-red-500 transition-colors">
+                  <Heart className={`h-4 w-4 ${likedComments.has(comment.id) ? 'fill-current text-red-500' : ''}`} />
+                  <span className="text-xs">{comment.likes_count}</span>
+                </button>
+              </div>
             </div>
           </div>
+
+          {replyingTo === comment.id && (
+            <div className="ml-12 pr-4 pb-4">
+              <CommentForm 
+                postId={postId} 
+                parentCommentId={comment.id}
+                onSuccess={() => setReplyingTo(null)}
+              />
+            </div>
+          )}
 
           {comment.replies && comment.replies.length > 0 && (
             <div className="ml-12 border-l-2 pl-4">

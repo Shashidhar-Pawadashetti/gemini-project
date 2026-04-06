@@ -5,38 +5,55 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { toast } from 'sonner';
+
+type CommentState =
+  | 'idle'
+  | 'composing'
+  | 'submitting'
+  | 'success'
+  | 'error_too_long'
+  | 'error_empty'
+  | 'error_network';
 
 interface CommentFormProps {
   postId: string;
+  parentCommentId?: string;
+  onSuccess?: () => void;
 }
 
-export function CommentForm({ postId }: CommentFormProps) {
+export function CommentForm({ postId, parentCommentId, onSuccess }: CommentFormProps) {
   const queryClient = useQueryClient();
   const [content, setContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState('');
+  const [state, setState] = useState<CommentState>('idle');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!content.trim()) {
-      setError('Comment cannot be empty');
+      setState('error_empty');
+      toast.error('Comment cannot be empty');
       return;
     }
 
     if (content.length > 500) {
-      setError('Comment must be 500 characters or less');
+      setState('error_too_long');
+      toast.error('Comment must be 500 characters or less');
       return;
     }
 
+    setState('submitting');
     setIsSubmitting(true);
-    setError('');
 
     try {
       const response = await fetch(`/api/posts/${postId}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: content.trim() }),
+        body: JSON.stringify({ 
+          content: content.trim(),
+          ...(parentCommentId && { parent_comment_id: parentCommentId })
+        }),
       });
 
       if (!response.ok) {
@@ -44,9 +61,12 @@ export function CommentForm({ postId }: CommentFormProps) {
       }
 
       setContent('');
+      setState('success');
       queryClient.invalidateQueries({ queryKey: ['post', postId] });
+      onSuccess?.();
     } catch {
-      setError('Failed to post comment. Please try again.');
+      setState('error_network');
+      toast.error('Failed to post comment. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -54,6 +74,11 @@ export function CommentForm({ postId }: CommentFormProps) {
 
   return (
     <div className="border-b p-4">
+      {parentCommentId && (
+        <p className="text-xs text-muted-foreground mb-2">
+          Replying to comment...
+        </p>
+      )}
       <form onSubmit={handleSubmit} className="flex gap-3">
         <Avatar className="h-10 w-10">
           <AvatarFallback>U</AvatarFallback>
@@ -63,21 +88,32 @@ export function CommentForm({ postId }: CommentFormProps) {
             value={content}
             onChange={(e) => {
               setContent(e.target.value);
-              if (error) setError('');
+              if (state === 'error_empty' || state === 'error_too_long') {
+                setState('composing');
+              }
             }}
-            placeholder="Post your reply..."
+            placeholder={parentCommentId ? "Write a reply..." : "Post your reply..."}
             className="resize-none min-h-[80px]"
             maxLength={500}
           />
-          {error && (
-            <p className="text-sm text-destructive mt-1">{error}</p>
-          )}
           <div className="flex justify-between items-center mt-2">
-            <span className={`text-xs ${content.length > 450 ? 'text-destructive' : 'text-muted-foreground'}`}>
+            <span className={`text-xs ${
+              content.length > 450 
+                ? state === 'error_too_long' 
+                  ? 'text-destructive font-bold' 
+                  : 'text-orange-500'
+                : 'text-muted-foreground'
+            }`}>
               {content.length}/500
             </span>
-            <Button type="submit" disabled={isSubmitting || !content.trim()}>
-              {isSubmitting ? 'Replying...' : 'Reply'}
+            <Button 
+              type="submit" 
+              disabled={isSubmitting || !content.trim() || content.length > 500}
+            >
+              {isSubmitting 
+                ? parentCommentId ? 'Replying...' : 'Posting...'
+                : parentCommentId ? 'Reply' : 'Post'
+              }
             </Button>
           </div>
         </div>

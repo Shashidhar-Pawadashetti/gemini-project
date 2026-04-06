@@ -1,12 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
+import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Heart, MessageCircle, Repeat2, Bookmark } from 'lucide-react';
+import { Heart, MessageCircle, Repeat2, Bookmark, Quote } from 'lucide-react';
 import { formatRelativeTime, formatNumber } from '@/lib/utils';
+import { toast } from 'sonner';
+import { RepostModal } from './repost-modal';
 import type { Post } from '@/types';
 
 interface PostCardProps {
@@ -15,12 +18,25 @@ interface PostCardProps {
 
 export function PostCard({ post }: PostCardProps) {
   const queryClient = useQueryClient();
+  const supabase = createBrowserSupabaseClient();
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isLiked, setIsLiked] = useState(post.is_liked_by_me ?? false);
   const [likesCount, setLikesCount] = useState(post.likes_count);
   const [isLikeLoading, setIsLikeLoading] = useState(false);
+  const [isRepostModalOpen, setIsRepostModalOpen] = useState(false);
+
+  useEffect(() => {
+    async function getCurrentUser() {
+      const { data: { user } } = await supabase.auth.getUser();
+      setCurrentUserId(user?.id ?? null);
+    }
+    getCurrentUser();
+  }, [supabase]);
+
+  const isOwnPost = currentUserId === post.author_id;
 
   const handleLike = async () => {
-    if (isLikeLoading) return;
+    if (isLikeLoading || isOwnPost) return;
     setIsLikeLoading(true);
     
     const previousLiked = isLiked;
@@ -28,7 +44,7 @@ export function PostCard({ post }: PostCardProps) {
     
     setIsLiked(!isLiked);
     setLikesCount((prev) => (isLiked ? prev - 1 : prev + 1));
-
+    
     try {
       const response = await fetch(`/api/posts/${post.id}/like`, {
         method: isLiked ? 'DELETE' : 'POST',
@@ -37,17 +53,28 @@ export function PostCard({ post }: PostCardProps) {
       if (!response.ok) {
         setIsLiked(previousLiked);
         setLikesCount(previousCount);
+        toast.error(isLiked ? 'Failed to unlike post' : 'Failed to like post');
       }
     } catch {
       setIsLiked(previousLiked);
       setLikesCount(previousCount);
+      toast.error('Failed to update like');
     } finally {
       setIsLikeLoading(false);
     }
   };
 
+  const openRepostModal = () => {
+    setIsRepostModalOpen(true);
+  };
+
   return (
     <article className="border-b p-4 hover:bg-accent/5 transition-colors">
+      <RepostModal 
+        post={post} 
+        open={isRepostModalOpen} 
+        onOpenChange={setIsRepostModalOpen} 
+      />
       <div className="flex gap-3">
         <Link href={`/profile/${post.author?.username}`}>
           <Avatar className="h-12 w-12">
@@ -94,16 +121,23 @@ export function PostCard({ post }: PostCardProps) {
 
             <button
               onClick={handleLike}
-              disabled={isLikeLoading}
+              disabled={isLikeLoading || isOwnPost}
               className={`flex items-center gap-1 transition-colors ${
-                isLiked ? 'text-red-500' : 'text-muted-foreground hover:text-red-500'
+                isOwnPost 
+                  ? 'text-muted-foreground cursor-not-allowed opacity-50' 
+                  : isLiked 
+                    ? 'text-red-500' 
+                    : 'text-muted-foreground hover:text-red-500'
               }`}
             >
               <Heart className={`h-5 w-5 ${isLiked ? 'fill-current' : ''}`} />
               <span className="text-sm">{formatNumber(likesCount)}</span>
             </button>
 
-            <button className="flex items-center gap-1 text-muted-foreground hover:text-green-500 transition-colors">
+            <button 
+              onClick={openRepostModal}
+              className="flex items-center gap-1 text-muted-foreground hover:text-green-500 transition-colors"
+            >
               <Repeat2 className="h-5 w-5" />
               <span className="text-sm">{formatNumber(post.reposts_count)}</span>
             </button>
