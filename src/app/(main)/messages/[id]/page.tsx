@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { formatRelativeTime } from '@/lib/utils';
 import { useRealtimeMessages } from '@/lib/hooks/useRealtimeMessages';
 import { useMessageStore } from '@/lib/stores/messages';
+import { toast } from 'sonner';
 import type { Message } from '@/types';
 
 export default function ConversationPage() {
@@ -31,6 +32,24 @@ export default function ConversationPage() {
     };
     getUser();
   }, [supabase.auth]);
+
+  useEffect(() => {
+    if (!currentUserId || !conversationId) return;
+
+    const markAsRead = async () => {
+      try {
+        await fetch(`/api/messages/${conversationId}/read`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ state: 'read' }),
+        });
+      } catch (error) {
+        console.error('Failed to mark as read:', error);
+      }
+    };
+
+    markAsRead();
+  }, [conversationId, currentUserId]);
 
   const {
     data,
@@ -69,6 +88,39 @@ export default function ConversationPage() {
       if (!response.ok) throw new Error('Failed to send message');
       return response.json();
     },
+    onMutate: async (content: string) => {
+      await queryClient.cancelQueries({ queryKey: ['messages', conversationId] });
+
+      const previousMessages = queryClient.getQueryData(['messages', conversationId]);
+
+      const optimisticMessage: Message = {
+        id: `temp-${Date.now()}`,
+        conversation_id: conversationId,
+        sender_id: currentUserId ?? '',
+        content,
+        state: 'sent',
+        created_at: new Date().toISOString(),
+      };
+
+      queryClient.setQueryData(['messages', conversationId], (old: { pages: { messages: Message[] }[] } | undefined) => {
+        if (!old) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            messages: [optimisticMessage, ...page.messages],
+          })),
+        };
+      });
+
+      return { previousMessages };
+    },
+    onError: (err, content, context) => {
+      if (context?.previousMessages) {
+        queryClient.setQueryData(['messages', conversationId], context.previousMessages);
+      }
+      toast.error('Failed to send message');
+    },
     onSuccess: () => {
       setNewMessage('');
       queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
@@ -78,6 +130,10 @@ export default function ConversationPage() {
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || sendMessage.isPending) return;
+    if (newMessage.length > 2000) {
+      toast.error('Message too long (max 2000 characters)');
+      return;
+    }
     sendMessage.mutate(newMessage.trim());
   };
 
@@ -90,6 +146,8 @@ export default function ConversationPage() {
   }, [conversationId, clearConversation]);
 
   const messages = data?.pages.flatMap(page => page.messages).reverse() || [];
+  const isOverLimit = newMessage.length > 2000;
+  const isNearLimit = newMessage.length > 1950;
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">
@@ -156,14 +214,24 @@ export default function ConversationPage() {
       </div>
 
       <form onSubmit={handleSend} className="border-t p-4 flex gap-2">
-        <Input
-          value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          placeholder="Type a message..."
-          maxLength={2000}
-          disabled={sendMessage.isPending}
-        />
-        <Button type="submit" disabled={!newMessage.trim() || sendMessage.isPending}>
+        <div className="flex-1">
+          <Input
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            placeholder="Type a message..."
+            maxLength={2000}
+            disabled={sendMessage.isPending}
+          />
+          {isNearLimit && (
+            <p className={`text-xs mt-1 ${isOverLimit ? 'text-destructive font-bold' : 'text-orange-500'}`}>
+              {newMessage.length}/2000
+            </p>
+          )}
+        </div>
+        <Button 
+          type="submit" 
+          disabled={!newMessage.trim() || sendMessage.isPending || isOverLimit}
+        >
           {sendMessage.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Send'}
         </Button>
       </form>
