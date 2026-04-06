@@ -1,6 +1,16 @@
 export type PostVisibility = 'public' | 'followers' | 'private';
 export type FollowState = 'active' | 'pending' | 'blocked';
 export type MessageState = 'sent' | 'delivered' | 'read' | 'failed';
+export type AvatarUploadState =
+  | 'idle'
+  | 'selecting'
+  | 'validating'
+  | 'error_file_type'
+  | 'error_file_size'
+  | 'uploading'
+  | 'processing'
+  | 'success'
+  | 'error_upload';
 export type NotificationAction = 
   | 'like' 
   | 'comment' 

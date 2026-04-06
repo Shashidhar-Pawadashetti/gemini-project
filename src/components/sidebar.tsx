@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Home, Compass, Mail, Bell, User, Bookmark, LogOut } from 'lucide-react';
+import { Home, Compass, Mail, Bell, User, Bookmark, LogOut, UserPlus } from 'lucide-react';
 import { NavLink } from '@/components/nav-link';
 import { CreatePostButton } from '@/components/create-post-button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -39,12 +39,12 @@ export function Sidebar({
           <NavLink href="/home" label="Home" icon={Home} />
           <NavLink href="/search" label="Explore" icon={Compass} />
           <NavLink href="/messages" label="Messages" icon={Mail} badgeCount={messageCount} />
-          <NavLink
-            href="/notifications"
+          <NavLink href="/notifications"
             label="Notifications"
             icon={Bell}
             badgeCount={notificationCount}
           />
+          <NavLink href="/requests" label="Requests" icon={UserPlus} />
           <NavLink href="/profile" label="Profile" icon={User} />
           <NavLink href="/bookmarks" label="Bookmarks" icon={Bookmark} />
         </nav>
