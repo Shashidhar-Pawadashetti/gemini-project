@@ -61,9 +61,13 @@ export function NotificationItem({ notification }: NotificationItemProps) {
 
   const href = notification.entity_type === 'post' && notification.entity_id
     ? `/post/${notification.entity_id}`
-    : notification.actor_id
-    ? `/profile/${notification.payload?.actor_username}`
-    : '#';
+    : notification.payload?.actor_username
+      ? `/profile/${notification.payload.actor_username}`
+      : '#';
+
+  const actorUsername = notification.payload?.actor_username;
+  const actorAvatar = notification.payload?.actor_avatar_url;
+  const actorInitial = actorUsername ? actorUsername[0].toUpperCase() : '?';
 
   return (
     <Link
@@ -77,10 +81,10 @@ export function NotificationItem({ notification }: NotificationItemProps) {
           <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
             {getIcon()}
           </div>
-        ) : notification.actor ? (
+        ) : actorUsername && actorAvatar ? (
           <Avatar className="h-10 w-10">
-            <AvatarImage src={notification.actor.avatar_url || undefined} alt={notification.actor.username} />
-            <AvatarFallback>{notification.actor.display_name[0]}</AvatarFallback>
+            <AvatarImage src={actorAvatar || undefined} alt={actorUsername} />
+            <AvatarFallback>{actorInitial}</AvatarFallback>
           </Avatar>
         ) : (
           <div className="w-10 h-10 rounded-full bg-muted" />

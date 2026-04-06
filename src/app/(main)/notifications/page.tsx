@@ -14,11 +14,24 @@ export default async function NotificationsPage() {
     );
   }
 
+  await supabase
+    .from('notifications')
+    .update({ is_read: true })
+    .eq('recipient_id', user.id)
+    .eq('is_read', false);
+
   const { data: notifications } = await supabase
     .from('notifications')
     .select(`
-      *,
-      actor:profiles!actor_id(id, username, display_name, avatar_url, is_verified)
+      id,
+      recipient_id,
+      actor_id,
+      action_type,
+      entity_type,
+      entity_id,
+      payload,
+      is_read,
+      created_at
     `)
     .eq('recipient_id', user.id)
     .order('created_at', { ascending: false })
