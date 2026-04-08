@@ -39,16 +39,28 @@ export async function GET() {
       );
     }
 
-    const formattedRequests = (pendingRequests || []).map((req: any) => ({
+    interface PendingRequest {
+      follower_id: string;
+      created_at: string;
+      profiles: {
+        id: string;
+        username: string;
+        display_name: string;
+        avatar_url: string | null;
+        bio: string | null;
+      }[];
+    }
+
+    const formattedRequests = (pendingRequests || []).map((req: PendingRequest) => ({
       follower_id: req.follower_id,
       created_at: req.created_at,
-      profile: {
-        id: req.profiles?.id,
-        username: req.profiles?.username,
-        display_name: req.profiles?.display_name,
-        avatar_url: req.profiles?.avatar_url,
-        bio: req.profiles?.bio,
-      },
+      profile: req.profiles?.[0] ? {
+        id: req.profiles[0].id,
+        username: req.profiles[0].username,
+        display_name: req.profiles[0].display_name,
+        avatar_url: req.profiles[0].avatar_url,
+        bio: req.profiles[0].bio,
+      } : null,
     }));
 
     return NextResponse.json({ requests: formattedRequests }, { status: 200 });
