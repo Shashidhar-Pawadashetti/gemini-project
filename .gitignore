@@ -1,8 +1,48 @@
+# Dependencies
 /node_modules
+
+# Gemini CLI
 .gemini/
+
+# Next.js
 .next/
-.env.local
+build/
+dist/
+
+# Environment
 .env
+.env.local
 .env.example
 .env.production
+.env*.local
+
+# OpenCode
 .opencode/
+
+# Test reports
+test-results/
+playwright-report/
+playwright/.cache/
+test-results/
+
+# Test configuration
+tests.env
+
+# Mock files
+src/__mocks__/
+
+# Build artifacts
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+.next/
+out/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
