@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { type QueryClient } from '@tanstack/react-query';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { useNotificationStore } from '@/lib/stores/notifications';
@@ -31,13 +31,62 @@ export function useRealtimeNotifications({
 }: UseRealtimeNotificationsOptions) {
   const supabase = createBrowserSupabaseClient();
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-  const { incrementUnread } = useNotificationStore();
+
+  const { incrementUnread } = useNotificationStore(
+    useCallback((state) => ({ incrementUnread: state.incrementUnread }), [])
+  );
+
+  const handleInsert = useCallback((payload: { new: RealtimeNotificationPayload }) => {
+    const newNotification = payload.new;
+    
+    queryClient.setQueryData(
+      ['notifications'],
+      (old: Notification[] | undefined) => {
+        if (!old) return old;
+        
+        const notification: Notification = {
+          id: newNotification.id,
+          recipient_id: newNotification.recipient_id,
+          actor_id: newNotification.actor_id,
+          action_type: newNotification.action_type as Notification['action_type'],
+          entity_type: newNotification.entity_type,
+          entity_id: newNotification.entity_id,
+          payload: newNotification.payload as Notification['payload'],
+          is_read: newNotification.is_read,
+          created_at: newNotification.created_at,
+        };
+        
+        if (!newNotification.is_read) {
+          incrementUnread();
+        }
+        
+        return [notification, ...old];
+      }
+    );
+  }, [queryClient, incrementUnread]);
+
+  const handleUpdate = useCallback((payload: { new: RealtimeNotificationPayload }) => {
+    const updatedNotification = payload.new;
+    
+    queryClient.setQueryData(
+      ['notifications'],
+      (old: Notification[] | undefined) => {
+        if (!old) return old;
+        
+        return old.map((notification) =>
+          notification.id === updatedNotification.id
+            ? { ...notification, is_read: updatedNotification.is_read }
+            : notification
+        );
+      }
+    );
+  }, [queryClient]);
 
   useEffect(() => {
     if (!enabled || !userId) return;
 
     const channel = supabase
-      .channel('realtime:public:notifications')
+      .channel('realtime:notifications')
       .on(
         'postgres_changes',
         {
@@ -46,34 +95,7 @@ export function useRealtimeNotifications({
           table: 'notifications',
           filter: `recipient_id=eq.${userId}`,
         },
-        async (payload) => {
-          const newNotification = payload.new as RealtimeNotificationPayload;
-          
-          queryClient.setQueryData(
-            ['notifications'],
-            (old: Notification[] | undefined) => {
-              if (!old) return old;
-              
-              const notification: Notification = {
-                id: newNotification.id,
-                recipient_id: newNotification.recipient_id,
-                actor_id: newNotification.actor_id,
-                action_type: newNotification.action_type as Notification['action_type'],
-                entity_type: newNotification.entity_type,
-                entity_id: newNotification.entity_id,
-                payload: newNotification.payload as Notification['payload'],
-                is_read: newNotification.is_read,
-                created_at: newNotification.created_at,
-              };
-              
-              if (!newNotification.is_read) {
-                incrementUnread();
-              }
-              
-              return [notification, ...old];
-            }
-          );
-        }
+        handleInsert
       )
       .on(
         'postgres_changes',
@@ -83,22 +105,7 @@ export function useRealtimeNotifications({
           table: 'notifications',
           filter: `recipient_id=eq.${userId}`,
         },
-        (payload) => {
-          const updatedNotification = payload.new as RealtimeNotificationPayload;
-          
-          queryClient.setQueryData(
-            ['notifications'],
-            (old: Notification[] | undefined) => {
-              if (!old) return old;
-              
-              return old.map((notification) =>
-                notification.id === updatedNotification.id
-                  ? { ...notification, is_read: updatedNotification.is_read }
-                  : notification
-              );
-            }
-          );
-        }
+        handleUpdate
       )
       .subscribe();
 
@@ -110,5 +117,5 @@ export function useRealtimeNotifications({
         channelRef.current = null;
       }
     };
-  }, [enabled, queryClient, supabase, userId, incrementUnread]);
+  }, [enabled, supabase, userId, handleInsert, handleUpdate]);
 }

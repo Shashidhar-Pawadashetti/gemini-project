@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PasswordStrengthMeter } from '@/components/password-strength';
+import { toast } from 'sonner';
 
 type RegistrationState =
   | 'idle'
@@ -35,7 +36,7 @@ export function RegisterForm() {
   const [state, setState] = useState<RegistrationState>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [countdown, setCountdown] = useState<number | null>(null);
-  const [usernameTimeout, setUsernameTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const usernameTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [formData, setFormData] = useState({
     first_name: '',
@@ -66,25 +67,24 @@ export function RegisterForm() {
   }, []);
 
   useEffect(() => {
-    if (usernameTimeout) {
-      clearTimeout(usernameTimeout);
+    if (usernameTimeoutRef.current) {
+      clearTimeout(usernameTimeoutRef.current);
     }
 
     if (formData.username.length >= 3) {
-      const timeout = setTimeout(() => {
+      usernameTimeoutRef.current = setTimeout(() => {
         checkUsernameAvailability(formData.username);
       }, 400);
-      setUsernameTimeout(timeout);
     } else {
       setState('idle');
     }
 
     return () => {
-      if (usernameTimeout) {
-        clearTimeout(usernameTimeout);
+      if (usernameTimeoutRef.current) {
+        clearTimeout(usernameTimeoutRef.current);
       }
     };
-  }, [formData.username, checkUsernameAvailability, usernameTimeout]);
+  }, [formData.username, checkUsernameAvailability]);
 
   const calculateAge = (dob: string): number => {
     const birthDate = new Date(dob);
@@ -169,11 +169,13 @@ export function RegisterForm() {
       }
 
       setState('success');
+      toast.success('Account created! Redirecting to onboarding...');
       router.push('/onboarding');
       router.refresh();
     } catch {
       setState('error_network');
       setErrorMessage('Something went wrong. Please try again.');
+      toast.error('Failed to create account. Please try again.');
     }
   };
 

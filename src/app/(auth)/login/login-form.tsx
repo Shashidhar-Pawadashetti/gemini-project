@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { toast } from 'sonner';
 
 type LoginError = {
   code: 'UNAUTHORIZED' | 'RATE_LIMITED' | 'INTERNAL_ERROR' | 'SERVICE_UNAVAILABLE';
@@ -67,6 +68,7 @@ export function LoginForm() {
         return;
       }
 
+      toast.success('Signed in successfully');
       router.push('/home');
       router.refresh();
     } catch {
@@ -74,6 +76,7 @@ export function LoginForm() {
         code: 'INTERNAL_ERROR',
         message: 'Something went wrong. Please try again.',
       });
+      toast.error('Failed to sign in. Please try again.');
     } finally {
       setIsLoading(false);
     }

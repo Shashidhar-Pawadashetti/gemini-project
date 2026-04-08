@@ -34,7 +34,11 @@ export function PostDetail({ post }: PostDetailProps) {
       if (!response.ok) {
         setIsLiked(previousLiked);
         setLikesCount(previousCount);
+        return;
       }
+
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
     } catch {
       setIsLiked(previousLiked);
       setLikesCount(previousCount);

@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { z } from 'zod';
+
+const MarkReadSchema = z.object({
+  notification_id: z.string().uuid().optional(),
+});
 
 export async function GET(request: NextRequest) {
   try {
@@ -47,11 +52,42 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    await supabase
-      .from('notifications')
-      .update({ is_read: true })
-      .eq('recipient_id', user.id)
-      .eq('is_read', false);
+    const body = await request.json().catch(() => ({}));
+    const parsed = MarkReadSchema.safeParse(body);
+
+    if (parsed.success && parsed.data.notification_id) {
+      const { data: notification, error: fetchError } = await supabase
+        .from('notifications')
+        .select('recipient_id')
+        .eq('id', parsed.data.notification_id)
+        .single();
+
+      if (fetchError || !notification) {
+        return NextResponse.json(
+          { error: 'NOT_FOUND', message: 'Notification not found', status: 404 },
+          { status: 404 }
+        );
+      }
+
+      if (notification.recipient_id !== user.id) {
+        return NextResponse.json(
+          { error: 'FORBIDDEN', message: 'Cannot update this notification', status: 403 },
+          { status: 403 }
+        );
+      }
+
+      await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('id', parsed.data.notification_id)
+        .eq('recipient_id', user.id);
+    } else {
+      await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('recipient_id', user.id)
+        .eq('is_read', false);
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -84,19 +84,19 @@ export function PostCard({ post }: PostCardProps) {
         </Link>
         
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <Link href={`/profile/${post.author?.username}`} className="font-bold hover:underline">
+          <div className="flex items-center gap-1 md:gap-2 truncate overflow-hidden">
+            <Link href={`/profile/${post.author?.username}`} className="font-bold hover:underline truncate">
               {post.author?.display_name}
             </Link>
-            <span className="text-muted-foreground">@{post.author?.username}</span>
-            <span className="text-muted-foreground">·</span>
-            <span className="text-muted-foreground text-sm">
+            <span className="text-muted-foreground shrink-0">@{post.author?.username}</span>
+            <span className="text-muted-foreground shrink-0">·</span>
+            <span className="text-muted-foreground text-sm shrink-0">
               {formatRelativeTime(post.created_at)}
             </span>
           </div>
 
           <Link href={`/post/${post.id}`} className="block">
-            <p className="mt-1 whitespace-pre-wrap">{post.content}</p>
+            <p className="mt-1 whitespace-pre-wrap break-words">{post.content}</p>
           </Link>
 
           {post.media_urls && post.media_urls.length > 0 && (

@@ -3,7 +3,7 @@
 import { useEffect, useCallback } from 'react';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { PostCard } from '@/components/post-card';
-import { Loader2 } from 'lucide-react';
+import { FeedSkeleton } from '@/components/post-skeleton';
 import { useRealtimeFeed } from '@/lib/hooks/useRealtimeFeed';
 import type { Post, FeedResponse } from '@/types';
 
@@ -50,11 +50,7 @@ export function HomeFeed() {
   }, [handleScroll]);
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <FeedSkeleton />;
   }
 
   if (isError) {
@@ -85,8 +81,14 @@ export function HomeFeed() {
       ))}
       
       {isFetchingNextPage && (
-        <div className="flex items-center justify-center p-4">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="border-b p-4">
+          <div className="flex gap-3 animate-pulse">
+            <div className="h-10 w-10 rounded-full bg-muted" />
+            <div className="flex-1 space-y-2">
+              <div className="h-4 w-32 bg-muted rounded" />
+              <div className="h-4 w-48 bg-muted rounded" />
+            </div>
+          </div>
         </div>
       )}
     </div>

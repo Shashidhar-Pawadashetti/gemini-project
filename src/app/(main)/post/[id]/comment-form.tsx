@@ -28,6 +28,9 @@ export function CommentForm({ postId, parentCommentId, onSuccess }: CommentFormP
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [state, setState] = useState<CommentState>('idle');
 
+  const errorId = state === 'error_empty' || state === 'error_too_long' ? 'comment-error' : undefined;
+  const charCountId = 'comment-char-count';
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -62,7 +65,10 @@ export function CommentForm({ postId, parentCommentId, onSuccess }: CommentFormP
 
       setContent('');
       setState('success');
+      toast.success(parentCommentId ? 'Reply posted' : 'Comment posted');
       queryClient.invalidateQueries({ queryKey: ['post', postId] });
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
       onSuccess?.();
     } catch {
       setState('error_network');
@@ -84,7 +90,13 @@ export function CommentForm({ postId, parentCommentId, onSuccess }: CommentFormP
           <AvatarFallback>U</AvatarFallback>
         </Avatar>
         <div className="flex-1">
+          {errorId && (
+            <p id="comment-error" className="text-sm text-destructive mb-2" role="alert">
+              {state === 'error_empty' ? 'Comment cannot be empty' : 'Comment must be 500 characters or less'}
+            </p>
+          )}
           <Textarea
+            id={parentCommentId ? `reply-${parentCommentId}` : `comment-${postId}`}
             value={content}
             onChange={(e) => {
               setContent(e.target.value);
@@ -95,15 +107,21 @@ export function CommentForm({ postId, parentCommentId, onSuccess }: CommentFormP
             placeholder={parentCommentId ? "Write a reply..." : "Post your reply..."}
             className="resize-none min-h-[80px]"
             maxLength={500}
+            aria-describedby={errorId || charCountId}
+            aria-invalid={!!errorId}
           />
           <div className="flex justify-between items-center mt-2">
-            <span className={`text-xs ${
-              content.length > 450 
-                ? state === 'error_too_long' 
-                  ? 'text-destructive font-bold' 
-                  : 'text-orange-500'
-                : 'text-muted-foreground'
-            }`}>
+            <span 
+              id={charCountId}
+              className={`text-xs ${
+                content.length > 450 
+                  ? state === 'error_too_long' 
+                    ? 'text-destructive font-bold' 
+                    : 'text-orange-500'
+                  : 'text-muted-foreground'
+              }`}
+              aria-live="polite"
+            >
               {content.length}/500
             </span>
             <Button 
