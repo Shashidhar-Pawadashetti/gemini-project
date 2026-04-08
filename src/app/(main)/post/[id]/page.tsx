@@ -62,7 +62,7 @@ export default async function PostPage({ params }: PostPageProps) {
     <div>
       <PostDetail post={postWithLikeStatus} />
       <CommentForm postId={params.id} />
-      <CommentList comments={commentsWithReplies} />
+      <CommentList comments={commentsWithReplies} postId={params.id} />
     </div>
   );
 }

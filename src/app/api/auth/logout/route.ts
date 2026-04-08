@@ -6,11 +6,7 @@ export async function GET() {
     const supabase = createServerSupabaseClient();
     await supabase.auth.signOut();
     
-    const response = NextResponse.json({ success: true }, { status: 200 });
-    response.cookies.delete('my-access-token');
-    response.cookies.delete('my-refresh-token');
-    
-    return response;
+    return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
     console.error('[API /auth/logout]:', error);
     return NextResponse.json(

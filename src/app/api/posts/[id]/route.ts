@@ -71,3 +71,66 @@ export async function GET(
     );
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const supabase = createServerSupabaseClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'UNAUTHORIZED', message: 'Authentication required', status: 401 },
+        { status: 401 }
+      );
+    }
+
+    const postId = params.id;
+
+    // Check if post exists and user is the author
+    const { data: post, error: fetchError } = await supabase
+      .from('posts')
+      .select('author_id')
+      .eq('id', postId)
+      .single();
+
+    if (fetchError || !post) {
+      return NextResponse.json(
+        { error: 'NOT_FOUND', message: 'Post not found', status: 404 },
+        { status: 404 }
+      );
+    }
+
+    // Verify author
+    if (post.author_id !== user.id) {
+      return NextResponse.json(
+        { error: 'FORBIDDEN', message: 'You can only delete your own posts', status: 403 },
+        { status: 403 }
+      );
+    }
+
+    // Delete post (cascades to likes and comments due to FK constraints)
+    const { error: deleteError } = await supabase
+      .from('posts')
+      .delete()
+      .eq('id', postId);
+
+    if (deleteError) {
+      console.error('[API /posts/[id] DELETE]:', deleteError);
+      return NextResponse.json(
+        { error: 'INTERNAL_ERROR', message: 'Failed to delete post', status: 500 },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true }, { status: 200 });
+  } catch (error) {
+    console.error('[API /posts/[id] DELETE]:', error);
+    return NextResponse.json(
+      { error: 'INTERNAL_ERROR', message: 'An unexpected error occurred', status: 500 },
+      { status: 500 }
+    );
+  }
+}

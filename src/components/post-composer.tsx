@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { X, Image as ImageIcon, Globe, Users, Lock } from 'lucide-react';
+import { X, Image as ImageIcon, Globe, Users, Lock, Loader2 } from 'lucide-react';
 import type { PostVisibility } from '@/types';
 
 interface PostComposerProps {
@@ -31,9 +31,14 @@ type ComposerState =
   | 'error_network'
   | 'error_content_empty';
 
+const ALLOWED_TYPES = [
+  'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif',
+  'video/mp4', 'video/webm',
+  'text/plain', 'application/pdf'
+];
+
 export function PostComposer({ user, onSuccess, placeholder = "What's happening?", compact = false }: PostComposerProps) {
   const queryClient = useQueryClient();
-  const supabase = createBrowserSupabaseClient();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -42,6 +47,7 @@ export function PostComposer({ user, onSuccess, placeholder = "What's happening?
   const [visibility, setVisibility] = useState<PostVisibility>('public');
   const [mediaFiles, setMediaFiles] = useState<File[]>([]);
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+  const [uploadErrors, setUploadErrors] = useState<string[]>([]);
 
   useEffect(() => {
     if (compact && textareaRef.current) {
@@ -50,46 +56,84 @@ export function PostComposer({ user, onSuccess, placeholder = "What's happening?
     }
   }, [content, compact]);
 
+  const validateFile = (file: File): string | null => {
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      return `Invalid file type: ${file.type}. Allowed: jpeg, png, webp, gif, mp4, webm, text, pdf`;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      return `File ${file.name} is too large. Maximum size is 10MB`;
+    }
+    return null;
+  };
+
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
     
     if (mediaFiles.length + files.length > 4) {
       setState('media_upload_error');
+      setUploadErrors(['Maximum 4 media items allowed']);
       return;
     }
 
-    const validFiles = files.filter(file => {
-      const isImage = file.type.startsWith('image/');
-      const isUnder10MB = file.size <= 10 * 1024 * 1024;
-      return isImage && isUnder10MB;
-    });
-
-    if (validFiles.length !== files.length) {
-      setState('media_upload_error');
+    // Client-side validation
+    const validFiles: File[] = [];
+    const errors: string[] = [];
+    
+    for (const file of files) {
+      const error = validateFile(file);
+      if (error) {
+        errors.push(error);
+      } else {
+        validFiles.push(file);
+      }
     }
+
+    if (errors.length > 0) {
+      setState('media_upload_error');
+      setUploadErrors(errors);
+    }
+
+    if (validFiles.length === 0) return;
 
     setMediaFiles(prev => [...prev, ...validFiles]);
+    setUploadErrors([]);
+    setState('uploading_media');
 
-    for (const file of validFiles) {
-      setState('uploading_media');
-      const { data, error } = await supabase.storage
-        .from('media')
-        .upload(`${user?.id}/${Date.now()}-${file.name}`, file);
+    try {
+      // Use signed URL upload via API
+      const formData = new FormData();
+      validFiles.forEach(file => formData.append('files', file));
 
-      if (error) {
+      const response = await fetch('/api/upload/media', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
         setState('media_upload_error');
-        continue;
+        setUploadErrors([data.message || 'Upload failed']);
+        return;
       }
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('media')
-        .getPublicUrl(data.path);
+      if (data.urls && data.urls.length > 0) {
+        setMediaUrls(prev => [...prev, ...data.urls]);
+      }
 
-      setMediaUrls(prev => [...prev, publicUrl]);
+      if (data.errors) {
+        setUploadErrors(data.errors);
+        if (data.urls.length === 0) {
+          setState('media_upload_error');
+        }
+      } else {
+        setState('idle');
+      }
+    } catch (error) {
+      setState('media_upload_error');
+      setUploadErrors(['Failed to upload media. Please try again.']);
     }
-
-    setState('idle');
   };
 
   const removeMedia = (index: number) => {
@@ -142,6 +186,8 @@ export function PostComposer({ user, onSuccess, placeholder = "What's happening?
   ];
 
   if (!user) return null;
+
+  const isUploading = state === 'uploading_media';
 
   return (
     <div className={`border-b p-4 ${compact ? '' : 'pb-0'}`}>
@@ -196,9 +242,9 @@ export function PostComposer({ user, onSuccess, placeholder = "What's happening?
             </div>
           )}
 
-          {state === 'media_upload_error' && (
+          {state === 'media_upload_error' && uploadErrors.length > 0 && (
             <p className="text-sm text-destructive mt-2">
-              File too large (max 10MB) or too many files (max 4)
+              {uploadErrors[0]}
             </p>
           )}
 
@@ -219,19 +265,24 @@ export function PostComposer({ user, onSuccess, placeholder = "What's happening?
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,video/*,text/plain,application/pdf"
                 multiple
                 onChange={handleFileSelect}
                 className="hidden"
+                disabled={isUploading || state === 'submitting'}
               />
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={mediaFiles.length >= 4 || state === 'submitting'}
+                disabled={mediaFiles.length >= 4 || isUploading || state === 'submitting'}
               >
-                <ImageIcon className="h-5 w-5 text-primary" />
+                {isUploading ? (
+                  <Loader2 className="h-5 w-5 text-primary animate-spin" />
+                ) : (
+                  <ImageIcon className="h-5 w-5 text-primary" />
+                )}
               </Button>
             </div>
 
@@ -245,7 +296,7 @@ export function PostComposer({ user, onSuccess, placeholder = "What's happening?
                 onClick={handleSubmit}
                 disabled={
                   state === 'submitting' ||
-                  state === 'uploading_media' ||
+                  isUploading ||
                   (!content.trim() && mediaUrls.length === 0) ||
                   content.length > 500
                 }
