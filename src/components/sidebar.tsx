@@ -23,11 +23,11 @@ export function Sidebar({
   avatarUrl,
 }: SidebarProps) {
   return (
-    <aside className="fixed left-0 top-0 z-40 h-screen w-[220px] border-r bg-background">
-      <div className="flex h-full flex-col">
+    <aside className="fixed left-0 top-0 z-40 hidden h-screen w-[220px] md:flex border-r bg-background">
+      <div className="flex h-full flex-col overflow-hidden">
         <Link
           href="/home"
-          className="flex items-center gap-2 p-6 hover:opacity-90 transition-opacity"
+          className="flex items-center gap-2 p-4 md:p-6 hover:opacity-90 transition-opacity"
         >
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary">
             <span className="text-lg font-bold text-primary-foreground">P</span>
@@ -35,7 +35,7 @@ export function Sidebar({
           <span className="text-2xl font-bold">Pulse</span>
         </Link>
 
-        <nav className="flex-1 space-y-1 px-3">
+        <nav className="flex-1 space-y-1 px-3 overflow-y-auto">
           <NavLink href="/home" label="Home" icon={Home} />
           <NavLink href="/search" label="Explore" icon={Compass} />
           <NavLink href="/messages" label="Messages" icon={Mail} badgeCount={messageCount} />
@@ -49,12 +49,12 @@ export function Sidebar({
           <NavLink href="/bookmarks" label="Bookmarks" icon={Bookmark} />
         </nav>
 
-        <div className="space-y-3 border-t p-4">
+        <div className="space-y-3 border-t p-4 shrink-0">
           <CreatePostButton />
 
           {username ? (
             <div className="flex items-center gap-3 pt-2">
-              <Avatar className="h-10 w-10">
+              <Avatar className="h-10 w-10 shrink-0">
                 <AvatarImage src={avatarUrl || undefined} alt={username} />
                 <AvatarFallback>{displayName?.[0] ?? 'U'}</AvatarFallback>
               </Avatar>
@@ -63,7 +63,7 @@ export function Sidebar({
                 <p className="truncate text-xs text-muted-foreground">@{username}</p>
               </div>
               <form action="/api/auth/logout" method="POST">
-                <Button type="submit" variant="ghost" size="icon" className="h-8 w-8">
+                <Button type="submit" variant="ghost" size="icon" className="h-8 w-8 shrink-0">
                   <LogOut className="h-4 w-4" />
                 </Button>
               </form>

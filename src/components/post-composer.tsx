@@ -171,6 +171,8 @@ export function PostComposer({ user, onSuccess, placeholder = "What's happening?
       setState('success');
       
       queryClient.invalidateQueries({ queryKey: ['feed'] });
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
       onSuccess?.();
       
       setTimeout(() => setState('idle'), 100);

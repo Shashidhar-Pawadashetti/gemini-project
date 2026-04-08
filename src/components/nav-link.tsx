@@ -20,19 +20,19 @@ export function NavLink({ href, label, icon: Icon, badgeCount }: NavLinkProps) {
     <Link
       href={href}
       className={cn(
-        'flex items-center gap-4 rounded-full px-4 py-3 text-lg font-medium transition-colors hover:bg-accent',
+        'flex items-center gap-3 md:gap-4 rounded-full px-3 md:px-4 py-2 md:py-3 text-base md:text-lg font-medium transition-colors hover:bg-accent',
         isActive && 'bg-accent'
       )}
     >
       <div className="relative">
-        <Icon className="h-6 w-6" />
+        <Icon className="h-5 w-5 md:h-6 md:w-6" />
         {badgeCount !== undefined && badgeCount > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
+          <span className="absolute -right-1 -top-1 flex h-4 w-4 md:h-5 md:w-5 items-center justify-center rounded-full bg-primary text-[10px] md:text-xs font-medium text-primary-foreground">
             {badgeCount > 99 ? '99+' : badgeCount}
           </span>
         )}
       </div>
-      <span>{label}</span>
+      <span className="hidden sm:inline">{label}</span>
     </Link>
   );
 }

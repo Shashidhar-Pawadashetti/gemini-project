@@ -1,5 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { z } from 'zod';
+
+const UpdatePostSchema = z.object({
+  content: z.string().max(500).optional(),
+  media_urls: z.array(z.string()).max(4).default([]),
+  visibility: z.enum(['public', 'followers', 'private']).optional(),
+});
+
+const PROFANITY_WORDS = ['spam', 'scam'];
+
+function containsProfanity(text: string | undefined): boolean {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  return PROFANITY_WORDS.some(word => lower.includes(word));
+}
 
 export async function GET(
   request: NextRequest,
@@ -65,6 +80,97 @@ export async function GET(
     });
   } catch (error) {
     console.error('[API /posts/[id] GET]:', error);
+    return NextResponse.json(
+      { error: 'INTERNAL_ERROR', message: 'An unexpected error occurred', status: 500 },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const supabase = createServerSupabaseClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'UNAUTHORIZED', message: 'Authentication required', status: 401 },
+        { status: 401 }
+      );
+    }
+
+    const postId = params.id;
+    const body = await request.json();
+    const parsed = UpdatePostSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'VALIDATION_ERROR', message: parsed.error.errors[0]?.message || 'Invalid data', status: 422 },
+        { status: 422 }
+      );
+    }
+
+    const { data: existingPost, error: fetchError } = await supabase
+      .from('posts')
+      .select('author_id')
+      .eq('id', postId)
+      .single();
+
+    if (fetchError || !existingPost) {
+      return NextResponse.json(
+        { error: 'NOT_FOUND', message: 'Post not found', status: 404 },
+        { status: 404 }
+      );
+    }
+
+    if (existingPost.author_id !== user.id) {
+      return NextResponse.json(
+        { error: 'FORBIDDEN', message: 'You can only edit your own posts', status: 403 },
+        { status: 403 }
+      );
+    }
+
+    const { content, media_urls, visibility } = parsed.data;
+
+    if (content && containsProfanity(content)) {
+      return NextResponse.json(
+        { error: 'VALIDATION_ERROR', message: 'Post contains inappropriate content', status: 422 },
+        { status: 422 }
+      );
+    }
+
+    const updates: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (content !== undefined) updates.content = content;
+    if (media_urls !== undefined) updates.media_urls = media_urls;
+    if (visibility !== undefined) updates.visibility = visibility;
+
+    const { data: updatedPost, error: updateError } = await supabase
+      .from('posts')
+      .update(updates)
+      .eq('id', postId)
+      .select(`
+        *,
+        author:profiles!author_id(id, username, display_name, avatar_url, is_verified)
+      `)
+      .single();
+
+    if (updateError) {
+      console.error('[API /posts/[id] POST]:', updateError);
+      return NextResponse.json(
+        { error: 'INTERNAL_ERROR', message: 'Failed to update post', status: 500 },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ post: updatedPost }, { status: 200 });
+  } catch (error) {
+    console.error('[API /posts/[id] POST]:', error);
     return NextResponse.json(
       { error: 'INTERNAL_ERROR', message: 'An unexpected error occurred', status: 500 },
       { status: 500 }

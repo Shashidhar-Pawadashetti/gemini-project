@@ -2,13 +2,35 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { z } from 'zod';
 
+const SUPABASE_STORAGE_HOST = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace('https://', '').replace('.supabase.co', '') || '';
+
+const PROFANITY_WORDS = ['spam', 'scam']; // Add more words as needed
+
+function containsProfanity(text: string | undefined): boolean {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  return PROFANITY_WORDS.some(word => lower.includes(word));
+}
+
 const CreatePostSchema = z.object({
   content: z.string().max(500).optional(),
-  media_urls: z.array(z.string().url()).max(4).default([]),
+  media_urls: z.array(z.string()).max(4).default([]),
   visibility: z.enum(['public', 'followers', 'private']).default('public'),
   parent_post_id: z.string().uuid().optional(),
   repost_of_id: z.string().uuid().optional(),
 });
+
+const UpdatePostSchema = z.object({
+  content: z.string().max(500).optional(),
+  media_urls: z.array(z.string()).max(4).default([]),
+  visibility: z.enum(['public', 'followers', 'private']).optional(),
+});
+
+function isValidMediaUrl(url: string): boolean {
+  if (!SUPABASE_STORAGE_HOST) return false;
+  return url.includes(SUPABASE_STORAGE_HOST) && 
+         (url.includes('/storage/v1/object/public/') || url.includes('/storage/v1/object/sign/'));
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -37,6 +59,24 @@ export async function POST(request: NextRequest) {
     if (!content && (!media_urls || media_urls.length === 0)) {
       return NextResponse.json(
         { error: 'VALIDATION_ERROR', message: 'Post must have content or media', status: 422 },
+        { status: 422 }
+      );
+    }
+
+    if (media_urls && media_urls.length > 0) {
+      for (const url of media_urls) {
+        if (!isValidMediaUrl(url)) {
+          return NextResponse.json(
+            { error: 'VALIDATION_ERROR', message: 'Invalid media URL. Must be from Supabase storage.', status: 422 },
+            { status: 422 }
+          );
+        }
+      }
+    }
+
+    if (content && containsProfanity(content)) {
+      return NextResponse.json(
+        { error: 'VALIDATION_ERROR', message: 'Post contains inappropriate content', status: 422 },
         { status: 422 }
       );
     }

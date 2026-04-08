@@ -102,8 +102,8 @@ describe('Notifications - Mark as Read (NOT-02)', () => {
 
 describe('Notifications - Self-like Guard (NOT-03)', () => {
   it('should not create notification when actor = recipient (self-like)', () => {
-    const actorId = 'user-1';
-    const recipientId = 'user-1';
+    const actorId: string = 'user-1';
+    const recipientId: string = 'user-1';
 
     const shouldCreateNotification = actorId !== recipientId;
 
@@ -111,8 +111,8 @@ describe('Notifications - Self-like Guard (NOT-03)', () => {
   });
 
   it('should create notification when actor != recipient', () => {
-    const actorId = 'user-2';
-    const recipientId = 'user-1';
+    const actorId: string = 'user-2';
+    const recipientId: string = 'user-1';
 
     const shouldCreateNotification = actorId !== recipientId;
 
@@ -122,8 +122,8 @@ describe('Notifications - Self-like Guard (NOT-03)', () => {
 
 describe('Notifications - Blocked User (NOT-04)', () => {
   it('should not show notification from blocked user', () => {
-    const blockedUserId = 'user-2';
-    const actorId = 'user-2';
+    const blockedUserId: string = 'user-2';
+    const actorId: string = 'user-2';
     const isBlocked = true;
 
     const canShowNotification = !isBlocked || actorId !== blockedUserId;
@@ -132,8 +132,8 @@ describe('Notifications - Blocked User (NOT-04)', () => {
   });
 
   it('should show notification from non-blocked user', () => {
-    const blockedUserId = 'user-2';
-    const actorId = 'user-3';
+    const blockedUserId: string = 'user-2';
+    const actorId: string = 'user-3';
     const isBlocked = false;
 
     const canShowNotification = !isBlocked || actorId !== blockedUserId;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { type QueryClient } from '@tanstack/react-query';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { useMessageStore } from '@/lib/stores/messages';
@@ -30,7 +30,68 @@ export function useRealtimeMessages({
 }: UseRealtimeMessagesOptions) {
   const supabase = createBrowserSupabaseClient();
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-  const { incrementUnread, clearConversation } = useMessageStore();
+  
+  const { incrementUnread, clearConversation } = useMessageStore(
+    useCallback((state) => ({
+      incrementUnread: state.incrementUnread,
+      clearConversation: state.clearConversation,
+    }), [])
+  );
+
+  const handleInsert = useCallback((payload: { new: RealtimeMessagePayload }) => {
+    const newMessage = payload.new;
+    
+    queryClient.setQueryData(
+      ['messages', conversationId],
+      (old: { pages: { messages: Message[] }[] } | undefined) => {
+        if (!old) return old;
+        
+        const message: Message = {
+          id: newMessage.id,
+          conversation_id: newMessage.conversation_id,
+          sender_id: newMessage.sender_id,
+          content: newMessage.content,
+          state: newMessage.state as Message['state'],
+          created_at: newMessage.created_at,
+        };
+        
+        if (newMessage.sender_id !== currentUserId) {
+          incrementUnread(conversationId);
+        }
+        
+        return {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            messages: [...page.messages, message],
+          })),
+        };
+      }
+    );
+  }, [conversationId, currentUserId, queryClient, incrementUnread]);
+
+  const handleUpdate = useCallback((payload: { new: RealtimeMessagePayload }) => {
+    const updatedMessage = payload.new;
+    
+    queryClient.setQueryData(
+      ['messages', conversationId],
+      (old: { pages: { messages: Message[] }[] } | undefined) => {
+        if (!old) return old;
+        
+        return {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            messages: page.messages.map((message) =>
+              message.id === updatedMessage.id
+                ? { ...message, state: updatedMessage.state as Message['state'] }
+                : message
+            ),
+          })),
+        };
+      }
+    );
+  }, [conversationId, queryClient]);
 
   useEffect(() => {
     if (!enabled || !conversationId) return;
@@ -38,7 +99,7 @@ export function useRealtimeMessages({
     clearConversation(conversationId);
 
     const channel = supabase
-      .channel(`realtime:public:messages:${conversationId}`)
+      .channel(`realtime:messages:${conversationId}`)
       .on(
         'postgres_changes',
         {
@@ -47,37 +108,7 @@ export function useRealtimeMessages({
           table: 'messages',
           filter: `conversation_id=eq.${conversationId}`,
         },
-        (payload) => {
-          const newMessage = payload.new as RealtimeMessagePayload;
-          
-          queryClient.setQueryData(
-            ['messages', conversationId],
-            (old: { pages: { messages: Message[] }[] } | undefined) => {
-              if (!old) return old;
-              
-              const message: Message = {
-                id: newMessage.id,
-                conversation_id: newMessage.conversation_id,
-                sender_id: newMessage.sender_id,
-                content: newMessage.content,
-                state: newMessage.state as Message['state'],
-                created_at: newMessage.created_at,
-              };
-              
-              if (newMessage.sender_id !== currentUserId) {
-                incrementUnread(conversationId);
-              }
-              
-              return {
-                ...old,
-                pages: old.pages.map((page) => ({
-                  ...page,
-                  messages: [...page.messages, message],
-                })),
-              };
-            }
-          );
-        }
+        handleInsert
       )
       .on(
         'postgres_changes',
@@ -87,28 +118,7 @@ export function useRealtimeMessages({
           table: 'messages',
           filter: `conversation_id=eq.${conversationId}`,
         },
-        (payload) => {
-          const updatedMessage = payload.new as RealtimeMessagePayload;
-          
-          queryClient.setQueryData(
-            ['messages', conversationId],
-            (old: { pages: { messages: Message[] }[] } | undefined) => {
-              if (!old) return old;
-              
-              return {
-                ...old,
-                pages: old.pages.map((page) => ({
-                  ...page,
-                  messages: page.messages.map((message) =>
-                    message.id === updatedMessage.id
-                      ? { ...message, state: updatedMessage.state as Message['state'] }
-                      : message
-                  ),
-                })),
-              };
-            }
-          );
-        }
+        handleUpdate
       )
       .subscribe();
 
@@ -120,5 +130,5 @@ export function useRealtimeMessages({
         channelRef.current = null;
       }
     };
-  }, [enabled, queryClient, supabase, conversationId, currentUserId, incrementUnread, clearConversation]);
+  }, [enabled, supabase, conversationId, handleInsert, handleUpdate, clearConversation]);
 }

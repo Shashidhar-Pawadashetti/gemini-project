@@ -9,12 +9,12 @@ export default function MainLayout({
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
-      <div className="pl-[220px]">
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_280px]">
+      <div className="pl-0 md:pl-[220px]">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px]">
           <main className="min-h-screen border-x">
             {children}
           </main>
-          <div className="hidden xl:block">
+          <div className="hidden lg:block">
             <RightSidebar />
           </div>
         </div>

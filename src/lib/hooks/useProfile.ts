@@ -47,6 +47,8 @@ export function useUpdateProfile() {
     },
     onSuccess: (data) => {
       queryClient.setQueryData(['profile', data.username], data);
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
     },
   });
 }
